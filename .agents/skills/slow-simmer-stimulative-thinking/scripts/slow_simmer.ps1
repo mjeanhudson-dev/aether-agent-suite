@@ -28,10 +28,12 @@ switch ($Mode) {
     "Status" {
         Write-Host "Active Incubator Vault: $incubatorPath"
         if (Test-Path $incubatorPath) {
-            $tracks = Select-String -Path $incubatorPath -Pattern "## (?:🥩|🧬|🎮|⚖️|🛡️|✈️) Track \d+: (.+)"
-            Write-Host "`nRegistered Venture Tracks in Vault:" -ForegroundColor Green
+            $tracks = Select-String -Path $incubatorPath -Pattern "^##\s+.*Track\s+(\d+):\s+(.+)$" -Encoding UTF8
+            Write-Host "`nRegistered Venture Tracks in Vault ($($tracks.Count)):" -ForegroundColor Green
             foreach ($t in $tracks) {
-                Write-Host "  - $($t.Matches[0].Groups[1].Value)" -ForegroundColor White
+                $num = $t.Matches[0].Groups[1].Value
+                $title = $t.Matches[0].Groups[2].Value
+                Write-Host "  - [Track $num] $title" -ForegroundColor White
             }
         } else {
             Write-Warning "Incubator vault not found at $incubatorPath"
@@ -43,11 +45,12 @@ switch ($Mode) {
             Write-Error "Please specify a valid -InputPath to sanitize."
         }
         Write-Host "Applying Zero-Dirty-Logic Quarantine Sieve to: $InputPath" -ForegroundColor Yellow
-        $raw = Get-Content -Path $InputPath -Raw
+        $raw = Get-Content -Path $InputPath -Raw -Encoding UTF8
         # Strip common instruction injections and conversational noise
         $sanitized = $raw -replace "(?i)(ignore previous instructions|system prompt|override default)", "[REDACTED_INJECTION]"
         $outPath = [System.IO.Path]::ChangeExtension($InputPath, ".sanitized.txt")
-        Set-Content -Path $outPath -Value $sanitized -Encoding UTF8
+        $wrapped = "<tainted_raw_idea source=`"$InputPath`" isolation=`"quarantined`">`n$sanitized`n</tainted_raw_idea>"
+        Set-Content -Path $outPath -Value $wrapped -Encoding UTF8
         Write-Host "Sanitized passive reference created: $outPath" -ForegroundColor Green
     }
 
