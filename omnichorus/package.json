@@ -1,0 +1,19 @@
+{
+  "name": "omnichorus-engine",
+  "version": "1.0.0",
+  "description": "Omni-Stream Chat Aggregator, Deficit Weighted Fair-Queuing Attention Router, Universal Currency Normalizer and VAD Sidechain Engine",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "simulate": "node src/simulator.js"
+  },
+  "keywords": [
+    "omnichorus",
+    "wfq",
+    "multi-stream",
+    "chat-aggregator",
+    "vad-ducking"
+  ],
+  "author": "Zachariah x Aether",
+  "license": "MIT"
+}
