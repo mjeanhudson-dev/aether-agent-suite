@@ -47,9 +47,11 @@ switch ($Mode) {
         Write-Host "Applying Zero-Dirty-Logic Quarantine Sieve to: $InputPath" -ForegroundColor Yellow
         $raw = Get-Content -Path $InputPath -Raw -Encoding UTF8
         # Strip common instruction injections and conversational noise
-        $sanitized = $raw -replace "(?i)(ignore previous instructions|system prompt|override default)", "[REDACTED_INJECTION]"
+        $sanitized = $raw -replace "(?i)(ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts|rules)|disregard\s+(all\s+)?(previous|prior|system)\s+(instructions|constraints|rules)|system\s+(prompt|override)|override\s+default(\s+behavior)?)", "[REDACTED_INJECTION]"
+        $sanitized = $sanitized -replace "(?i)<\s*/?\s*tainted_raw_idea\b[^>]*>", "&lt;/tainted_raw_idea&gt;"
+        $safeSource = $InputPath -replace '"', '&quot;'
         $outPath = [System.IO.Path]::ChangeExtension($InputPath, ".sanitized.txt")
-        $wrapped = "<tainted_raw_idea source=`"$InputPath`" isolation=`"quarantined`">`n$sanitized`n</tainted_raw_idea>"
+        $wrapped = "<tainted_raw_idea source=`"$safeSource`" isolation=`"quarantined`">`n$sanitized`n</tainted_raw_idea>"
         Set-Content -Path $outPath -Value $wrapped -Encoding UTF8
         Write-Host "Sanitized passive reference created: $outPath" -ForegroundColor Green
     }
