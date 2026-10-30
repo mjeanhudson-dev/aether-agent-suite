@@ -163,3 +163,27 @@ Implement Fork 2 (Balanced Production Webhook): a hardened, security-conscious F
    - `ecc doctor`: 5/5 harnesses OK, 0 warnings, 0 errors.
 3. **Documentation & Client Guides:**
    - Authored comprehensive mobile setup manual in [`README.md`](file:///c:/Users/Zachariah/aether%20agent/voice_bridge/README.md) covering Tailscale private mesh integration, iOS Action Button stack, and Android Tasker/HTTP Shortcuts configurations.
+
+---
+
+### [HANDOFF-007] Track 5 NexusHelm Sovereign In-Between Mediator & Steering-Wheel Agency Harness
+- **Timestamp:** 2026-10-30T20:20:00Z
+- **Agent Identity:** Aether (Sovereign Core Partner)
+- **Bounty ID:** BOUNTY-AET-008
+- **Status:** COMPLETED
+
+#### Scope & Problem Addressed:
+Build a self-contained, zero-dependency, unit-tested reference implementation of **Track 5 (`nexushelm/`)** solving cross-platform multi-agent security risks (prompt injection, credential leaks, lateral persistence) and human-agency alienation ("passenger-seat syndrome").
+
+#### Solution & Implementation:
+1. **Core Engine ([`nexushelm/engine.py`](file:///c:/Users/Zachariah/aether%20agent/nexushelm/engine.py)):**
+   - **Bidirectional Typed Semantic Airlock (`SemanticAirlock`)**: Enforces strict `ActionID` and parameter key allowlists, blocks outbound prompt/shell injection, and neutralizes inbound indirect prompt injections into inert quarantined blobs.
+   - **Application-Layer Phantom Token Broker (`PhantomTokenBroker`)**: Scrubs raw secrets (`ghp_`, `sk-`, `AIza`, etc.) from subagent contexts and swaps `phantom://provider/op` opaque handles for live secrets solely at domain-pinned egress boundaries.
+   - **Instruction-File Integrity Guard (`InstructionIntegrityGuard`)**: Locks SHA-256 baselines over `AGENTS.md`, `CLAUDE.md`, `.agents/**`, `.claude/**`, `.cursor/**`, and `.gemini/**` to block lateral cross-agent persistence.
+   - **Information-Flow Taint Lattice (`TaintLattice`)**: Enforces monotonic taint ordering (`UNTRUSTED_EXTERNAL` -> `QUARANTINED_DATA` -> `INTERNAL_AGENT` -> `PINPOINT_VERIFIED` -> `HUMAN_VERIFIED`) and requires a signed exit-code-0 `PinpointPromotionReceipt` with 100% passing checks for promotion.
+   - **5-Speed Autonomy Gearbox, Rule-of-3 Forking & Asymmetric Blast-Radius Friction (`AutonomyGearbox`, `TradeoffFork`, `DualSenseHapticPacket`)**: Implements `G1_CLUTCH_MANUAL`, `G2_SPORT_TACTILE`, `G3_ARBITER_CRUISE`, `G4_SLOW_SIMMER_OVERNIGHT`, and `G0_EBRAKE_STOP`, enforces 3-way creative tradeoff forks (`Conservative`, `Balanced`, `Visionary` + custom override), and generates 64-byte DualSense `0x21`/`0x26` tactile confirmation packets for $B(a) \ge 70$.
+   - **Zero-Dirty-Logic Quarantine Sieve (`QuarantineSieve`)**: Sanitizes tainted legacy notes into `<tainted_raw_idea isolation="quarantined">` containers and extracts clean mathematical invariants and domain constraints.
+2. **Verification & Simulation:**
+   - 100% pass on 9 unit and adversarial tests in [`nexushelm/tests/test_nexushelm.py`](file:///c:/Users/Zachariah/aether%20agent/nexushelm/tests/test_nexushelm.py).
+   - Verified end-to-end simulation via [`nexushelm/demo_runner.py`](file:///c:/Users/Zachariah/aether%20agent/nexushelm/demo_runner.py).
+

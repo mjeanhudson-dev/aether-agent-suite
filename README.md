@@ -6,7 +6,7 @@ Welcome to the command center for **Aether**, Zachariah's sovereign AI developme
 This repository anchors the persistent context, harness configurations, and multi-agent orchestration for projects across:
 - **Motion & Racing Simulation:** DualSense 6-axis gyro steering, 250 Hz USB HID async polling, 1-Euro adaptive filtering, and Shift 2 Unleashed XInput proxying ([`vibrant-darwin`](file:///c:/Users/Zachariah/Documents/antigravity/vibrant-darwin)).
 - **Cross-Platform Control Plane:** Heterogeneous model orchestration across Gemini, Claude, and Codex with zero-trust security and human-agency preservation ([`paperclip`](file:///c:/Users/Zachariah/Documents/antigravity/vibrant-darwin/paperclip)).
-- **Venture & Patent Incubator:** High-margin product incubation including OmniChorus/PulseDeck (fair-share multi-stream chat aggregator) and NexusHelm (sovereign mediator harness) ([`VENTURE_INCUBATOR.md`](file:///c:/Users/Zachariah/Documents/antigravity/VENTURE_INCUBATOR.md)).
+- **Venture & Patent Incubator:** High-margin product incubation including OmniChorus/PulseDeck ([`omnichorus/`](file:///c:/Users/Zachariah/aether%20agent/omnichorus)), CROSSWIND: GROUND EFFECT ([`crosswind/`](file:///c:/Users/Zachariah/aether%20agent/crosswind)), Mobile Voice Bridge ([`voice_bridge/`](file:///c:/Users/Zachariah/aether%20agent/voice_bridge)), and NexusHelm Sovereign In-Between Mediator & Steering-Wheel Agency Harness ([`nexushelm/`](file:///c:/Users/Zachariah/aether%20agent/nexushelm)) ([`VENTURE_INCUBATOR.md`](file:///c:/Users/Zachariah/Documents/antigravity/VENTURE_INCUBATOR.md)).
 
 ## Quick Links
 - **Master Task Board:** [`BOUNTY_BOARD.md`](file:///c:/Users/Zachariah/aether%20agent/BOUNTY_BOARD.md)
