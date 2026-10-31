@@ -85,4 +85,12 @@ for (const [p, data] of Object.entries(dist.breakdown)) {
   console.log(`  ${p.padEnd(10)}: ${data.count.toString().padStart(3)} dispatched (${data.percentage.padStart(5)}) [Arrival: ${data.currentArrivalRate}]`);
 }
 console.log(`  TOTAL DISPATCHED: ${dist.totalDispatched} messages`);
+
+engine.triggerSponsorCtaDrop([Platform.YOUTUBE, Platform.TWITCH, Platform.TIKTOK, Platform.DISCORD]);
+const roiReport = engine.generateSponsorRoiReport();
+console.log('\n--- SPONSOR PROOF-OF-PERFORMANCE & CRYPTOGRAPHIC ROI RECEIPT ---');
+console.log(`  Campaign: ${roiReport.brandName} (${roiReport.campaignId}) | Promo: ${roiReport.promoCode}`);
+console.log(`  Effective Impressions: ${roiReport.totals.effectiveImpressions} | Sponsor Hits: ${roiReport.totals.totalSponsorKeywordMatches} | Est. Value: $${roiReport.totals.estimatedMediaValueUsd.toFixed(2)} (${roiReport.totals.roiMultiplier.toFixed(2)}x ROI)`);
+console.log(`  SHA-256 Receipt: ${roiReport.verificationReceipt.payloadSha256}`);
 console.log('\nResult: Successfully transformed 85%+ lopsided YouTube firehose into a fair-share community feed!');
+

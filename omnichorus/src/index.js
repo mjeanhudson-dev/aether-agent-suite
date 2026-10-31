@@ -2,6 +2,7 @@ import { DwfqRouter } from './dwfq_router.js';
 import { CurrencyNormalizer } from './currency_normalizer.js';
 import { ModCockpit } from './mod_cockpit.js';
 import { VadSidechain } from './vad_sidechain.js';
+import { SponsorRoiTracker } from './sponsor_roi.js';
 import { Platform, ModMode, PlatformBadge } from './types.js';
 
 /**
@@ -12,6 +13,7 @@ export class OmniChorusEngine {
     this.router = new DwfqRouter(options.router);
     this.cockpit = new ModCockpit(options.cockpit);
     this.vad = new VadSidechain(options.vad);
+    this.sponsorRoi = new SponsorRoiTracker(options.sponsorRoi);
     this.teleprompterCards = [];
   }
 
@@ -39,7 +41,13 @@ export class OmniChorusEngine {
       isSponsorMatch: modResult.isSponsorMatch
     };
 
-    // 4. Enqueue into DWFQ Attention Router
+    // 4. Record Sponsor ROI Attribution
+    const sponsorAttr = this.sponsorRoi.recordMessage(envelope);
+    if (sponsorAttr.matched && !envelope.isSponsorMatch) {
+      envelope.isSponsorMatch = true;
+    }
+
+    // 5. Enqueue into DWFQ Attention Router
     this.router.enqueue(rawMessage.platform, envelope);
 
     return envelope;
@@ -95,9 +103,18 @@ export class OmniChorusEngine {
     this.cockpit.setMode(mode);
   }
 
+  triggerSponsorCtaDrop(platforms, timestamp) {
+    return this.sponsorRoi.triggerSynchronizedCtaDrop(platforms, timestamp);
+  }
+
+  generateSponsorRoiReport(options) {
+    return this.sponsorRoi.generateSignedRoiReport(options);
+  }
+
   getDistribution() {
     return this.router.getDistributionStats();
   }
 }
 
-export { Platform, ModMode, PlatformBadge, DwfqRouter, CurrencyNormalizer, ModCockpit, VadSidechain };
+export { Platform, ModMode, PlatformBadge, DwfqRouter, CurrencyNormalizer, ModCockpit, VadSidechain, SponsorRoiTracker };
+
