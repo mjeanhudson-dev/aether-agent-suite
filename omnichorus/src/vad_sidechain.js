@@ -8,12 +8,39 @@ export class VadSidechain {
     this.pauseGateMs = options.pauseGateMs || 600;       // Minimum silence before playing TTS
     this.duckingDb = options.duckingDb || -14.0;         // -14 dB attenuation
     this.duckingGain = Math.pow(10, this.duckingDb / 20.0); // ~0.1995 linear multiplier
-    this.rampTimeMs = options.rampTimeMs || 50;
+    this.attackMs = options.attackMs || options.rampTimeMs || 50;
+    this.releaseMs = options.releaseMs !== undefined ? options.releaseMs : 0;
 
     this.isPresenterSpeaking = false;
     this.lastSpeechTime = 0;
     this.currentTtsPlaying = null;
     this.currentGain = 1.0;
+    this.targetGain = 1.0;
+    this.transitionStartGain = 1.0;
+    this.lastTransitionTime = 0;
+  }
+
+  /**
+   * C^1 continuous raised-cosine gain calculation
+   */
+  computeGainAt(timestampMs) {
+    if (this.currentGain === this.targetGain) {
+      return this.currentGain;
+    }
+    const duration = this.targetGain < this.transitionStartGain ? this.attackMs : this.releaseMs;
+    if (duration <= 0) {
+      this.currentGain = this.targetGain;
+      return this.currentGain;
+    }
+    const elapsed = Math.max(0, timestampMs - this.lastTransitionTime);
+    if (elapsed >= duration) {
+      this.currentGain = this.targetGain;
+      return this.currentGain;
+    }
+    const progress = elapsed / duration;
+    // C^1 raised-cosine interpolation: zero derivative at edges
+    this.currentGain = this.targetGain + (this.transitionStartGain - this.targetGain) * 0.5 * (1.0 + Math.cos(Math.PI * progress));
+    return this.currentGain;
   }
 
   /**
@@ -27,14 +54,23 @@ export class VadSidechain {
 
     if (this.isPresenterSpeaking) {
       this.lastSpeechTime = timestampMs;
-      // If TTS is currently speaking, duck immediately
-      this.currentGain = this.duckingGain;
+      if (this.targetGain !== this.duckingGain) {
+        this.transitionStartGain = this.computeGainAt(timestampMs);
+        this.targetGain = this.duckingGain;
+        this.lastTransitionTime = timestampMs;
+      }
     } else {
       const silenceDuration = timestampMs - this.lastSpeechTime;
       if (silenceDuration >= this.pauseGateMs) {
-        this.currentGain = 1.0; // Restore full volume
+        if (this.targetGain !== 1.0) {
+          this.transitionStartGain = this.computeGainAt(timestampMs);
+          this.targetGain = 1.0;
+          this.lastTransitionTime = timestampMs;
+        }
       }
     }
+
+    this.computeGainAt(timestampMs);
 
     return {
       isPresenterSpeaking: this.isPresenterSpeaking,

@@ -101,6 +101,11 @@ export class OmniChorusEngine {
 
   setMode(mode) {
     this.cockpit.setMode(mode);
+    if (mode === ModMode.FAMILY_LOVE) {
+      this.router.beta = 0.25;
+    } else if (mode === ModMode.NORMAL) {
+      this.router.beta = 0.30;
+    }
   }
 
   triggerSponsorCtaDrop(platforms, timestamp) {

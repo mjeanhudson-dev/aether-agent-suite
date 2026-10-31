@@ -89,9 +89,16 @@ export class DwfqRouter {
     const weights = new Map();
     if (denom <= 0) denom = 1.0;
 
+    const nActive = activePlatforms.length;
+    const floorSum = nActive * this.wMin;
     for (const p of activePlatforms) {
-      const rawWeight = powerTerms.get(p) / denom;
-      weights.set(p, Math.max(this.wMin, rawWeight));
+      if (floorSum >= 1.0) {
+        weights.set(p, 1.0 / nActive);
+      } else {
+        const rawNormalized = powerTerms.get(p) / denom;
+        const simplexWeight = this.wMin + (1.0 - floorSum) * rawNormalized;
+        weights.set(p, simplexWeight);
+      }
     }
 
     return weights;
@@ -106,10 +113,10 @@ export class DwfqRouter {
       const weights = this.calculateWeights();
       if (weights.size === 0) break; // All queues drained
 
-      // Allocate quantum deficits based on weights
+      // Allocate quantum deficits based on weights with a 2x quantum ceiling
       for (const [platform, weight] of weights.entries()) {
         const currentDeficit = this.deficits.get(platform) || 0.0;
-        this.deficits.set(platform, currentDeficit + (weight * this.quantum));
+        this.deficits.set(platform, Math.min(2.0 * this.quantum, currentDeficit + (weight * this.quantum)));
       }
 
       let progressInRound = false;
@@ -133,6 +140,11 @@ export class DwfqRouter {
           } else {
             break; // Insufficient deficit, wait for next quantum round
           }
+        }
+
+        if (!q || q.length === 0) {
+          // Reset deficit to 0 upon queue drain to prevent silent queues from banking credit
+          this.deficits.set(platform, 0.0);
         }
 
         if (dispatched.length >= maxToDispatch) break;

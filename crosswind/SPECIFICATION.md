@@ -51,12 +51,14 @@ In *CROSSWIND*, multiplayer is not a lonely server list; it is a synchronized ra
 
 *CROSSWIND* uses a bespoke sectional aerodynamic model combining **Blade Element Theory (BET)** with physical **Ground Effect** and **Crosswind Kinematics**:
 
-### 3.1 Sectional Blade Element Theory (BET)
-The wing is discretized into $N = 10$ spanwise stations per half-span. For each station $i$ with local chord $c_i$, local angle-of-attack $\alpha_i$, and local relative wind velocity $V_i$:
-$$L_i = \frac{1}{2} \rho V_i^2 c_i \Delta y \cdot C_L(\alpha_i)$$
-$$D_i = \frac{1}{2} \rho V_i^2 c_i \Delta y \cdot C_D(\alpha_i)$$
+### 3.1 Sectional Blade Element Theory (BET) & Viterna-Corrigan Post-Stall
+The wing is discretized into $N = 20$ spanwise stations ($y_k \in [-b/2, b/2]$). For each station $k$ with local ground effect height $h(y_k) = \max(0.1, h_{\text{AGL}} + y_k \sin\phi)$, local angle-of-attack $\alpha_k$, and local relative wind velocity $V_k$:
+$$L_k = \frac{1}{2} \rho V_k^2 \Delta S \cdot C_L(\alpha_k)$$
+$$D_k = \frac{1}{2} \rho V_k^2 \Delta S \cdot C_D(\alpha_k)$$
+$$M_{\text{roll}} = \sum_{k=1}^{N} y_k \cdot L_k$$
 
-- **Half-Wing Asymmetric Stall:** If a pilot initiates an uncoordinated turn at low airspeed without rudder deflection, the retreating wing exceeds $\alpha_{\text{critical}} \approx 16^\circ$ first, triggering an immediate autorotation / snap-roll into a spin that requires counter-rudder and forward yoke recovery.
+- **C^1 Viterna-Corrigan Post-Stall Continuity:** At $\alpha_{\text{crit}} = 16.5^\circ$, post-stall lift decay is anchored to $C_{L,\text{crit}} = C_L(\alpha_{\text{crit}}^-)$ via $C_L(\alpha) = C_{L,\text{crit}} \cdot \cos\left(\min\left(\frac{\pi}{2}, (\alpha - \alpha_{\text{crit}}) \cdot 3.5^\circ\right)\right)$, eliminating non-physical jump discontinuities.
+- **Asymmetric Ground Cushion Flare:** Banked flares compress the downwind/lowered wing closer to the runway, creating differential ground effect lift boost that exerts an authentic self-restoring ground cushion roll moment.
 
 ### 3.2 Dynamic Ground Effect Physics ($\sigma$)
 When an aircraft descends within one wingspan of the ground ($h / b < 1.0$), the ground physically impedes the formation of wingtip trailing vortices, collapsing downwash $w_d$ and induced drag $C_{D,i}$:
@@ -71,7 +73,7 @@ $$C_{D,i} = \sigma\left(\frac{h}{b}\right) \cdot \frac{C_L^2}{\pi e \text{AR}}$$
 When crabbing into a crosswind $v_w$ with airspeed $V_{\text{TAS}}$:
 $$\beta_{\text{crab}} = \arcsin\left(\frac{v_w \cdot \sin(\theta_{\text{runway}} - \theta_{\text{wind}})}{V_{\text{TAS}}}\right)$$
 - At 10 feet AGL during flare, the pilot must execute the **"Kick-Decrab"**: applying opposite rudder to align the longitudinal axis with the runway stripe while dipping the upwind wing with aileron to prevent drift.
-- **Tire Sideload Mechanics:** Touching down with residual crab angle creates lateral shear force $F_y = \mu_{\text{side}} \cdot m \cdot g \cdot \sin(\Delta \psi)$. Exceeding $\Delta \psi > 8.0^\circ$ on dry tarmac causes immediate tire blowout and violent ground loop!
+- **Tire Sideload Mechanics:** Touching down with residual crab angle creates lateral shear force $F_y = \mu_{\text{side}} \cdot m \cdot g \cdot \sin(\Delta \psi)$. Exceeding $\Delta \psi > 7.5^\circ$ on dry tarmac causes immediate tire blowout and violent ground loop!
 
 ---
 
@@ -112,7 +114,7 @@ Contracts dynamically inject emergency failures based on airframe stress, mainte
 
 Upon touchdown rollout, the flight recorder computes a cryptographic telemetry scorecard:
 
-$$\text{Score} = \text{Base} (10,000) - \Delta_{\text{FPM}} \cdot 15 - \Delta_{\text{center}} \cdot 25 - \Delta_{\text{rollout}} \cdot 2 - \text{DamagePenalties}$$
+$$\text{Score} = \text{Base} (10,000) - |\text{FPM}| \cdot 5 - |\Delta_{\text{center}}| \cdot 150 - \text{DamagePenalties}$$
 
 - **Touchdown Categories:**
   - **Grease / Butter ($0\text{ to } -120\text{ ft/min}$):** $+2,500$ Bonus points. Silky smooth tire chirps.

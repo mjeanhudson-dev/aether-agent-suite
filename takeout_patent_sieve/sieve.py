@@ -12,6 +12,24 @@ Implements:
 from __future__ import annotations
 
 import dataclasses
+import unicodedata
+
+HOMOGLYPH_MAP = {
+    'а': 'a', 'с': 'c', 'е': 'e', 'о': 'o', 'р': 'p', 'ѕ': 's', 'х': 'x', 'у': 'y',
+    'і': 'i', 'ј': 'j', 'А': 'A', 'В': 'B', 'С': 'C', 'Е': 'E', 'Н': 'H', 'І': 'I',
+    'Ј': 'J', 'К': 'K', 'М': 'M', 'О': 'O', 'Р': 'P', 'Т': 'T', 'Х': 'X', 'У': 'Y',
+}
+
+def normalize_confusables(text: str) -> str:
+    """Normalize Unicode confusables, strip zero-width characters, and map homoglyphs."""
+    if not text:
+        return ""
+    # Strip zero-width & bidirectional formatting characters
+    cleaned = re.sub(r"[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\u00ad]", "", text)
+    # NFKD decomposition
+    nfkd = unicodedata.normalize("NFKD", cleaned)
+    # Map homoglyphs
+    return "".join(HOMOGLYPH_MAP.get(ch, ch) for ch in nfkd)
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
@@ -98,8 +116,8 @@ MATH_INVARIANT_PATTERNS: Tuple[re.Pattern[str], ...] = (
     re.compile(r"\$\$([^$]+)\$\$", re.DOTALL),
     re.compile(r"\$([^$\n]{3,160})\$"),
     re.compile(
-        r"\b([A-Za-z_][A-Za-z0-9_\\{}()^,\s]{0,30}\s*(?:=|\\le|\\ge|<=|>=|\\approx|\\propto)\s*"
-        r"[-+0-9A-Za-z_\\{}()^.*/\s|,\[\]]{4,140})"
+        r"\b([A-Za-z_][A-Za-z0-9_\\{}()^, ]{0,30}\s*(?:=|\\le|\\ge|<=|>=|\\approx|\\propto)\s*"
+        r"[-+0-9A-Za-z_\\{}()^.*/ |,\[\]]{4,140})"
     ),
 )
 
@@ -311,6 +329,59 @@ class TakeoutArchiveStreamer:
                 yield cls.parse_gemini_activity_item(item, idx=idx)
 
     @classmethod
+    def _stream_json_file(cls, fp: io.TextIOBase) -> Iterator[TakeoutRecord]:
+        first_char = ""
+        while True:
+            ch = fp.read(1)
+            if not ch:
+                return
+            if not ch.isspace():
+                first_char = ch
+                break
+        if first_char != "[":
+            rest = first_char + fp.read()
+            try:
+                data = json.loads(rest)
+                if isinstance(data, list):
+                    yield from cls.stream_from_records(data)
+                elif isinstance(data, dict):
+                    yield from cls.stream_from_records([data])
+            except Exception:
+                pass
+            return
+
+        decoder = json.JSONDecoder()
+        buffer = ""
+        chunk_size = 65536
+        idx = 0
+        while True:
+            chunk = fp.read(chunk_size)
+            if not chunk:
+                break
+            buffer += chunk
+            while True:
+                buffer = buffer.lstrip()
+                if not buffer or buffer[0] == "]":
+                    break
+                if buffer[0] == ",":
+                    buffer = buffer[1:].lstrip()
+                    if not buffer:
+                        break
+                try:
+                    obj, offset = decoder.raw_decode(buffer)
+                    buffer = buffer[offset:]
+                    idx += 1
+                    if isinstance(obj, dict):
+                        if "title" in obj or "titleUrl" in obj:
+                            yield cls.parse_gemini_activity_item(obj, idx=idx)
+                        elif "user_turn" in obj or "prompt" in obj or "question" in obj:
+                            yield cls.parse_chat_thread_turn(obj, idx=idx)
+                        else:
+                            yield cls.parse_chat_thread_turn(obj, idx=idx)
+                except json.JSONDecodeError:
+                    break
+
+    @classmethod
     def stream_from_zip(cls, zip_path: Path | str) -> Iterator[TakeoutRecord]:
         with zipfile.ZipFile(zip_path, "r") as zf:
             for idx, info in enumerate(zf.infolist()):
@@ -319,11 +390,8 @@ class TakeoutArchiveStreamer:
                 lower_name = info.filename.lower()
                 if lower_name.endswith(".json"):
                     with zf.open(info, "r") as fp:
-                        data = json.load(io.TextIOWrapper(fp, encoding="utf-8"))
-                        if isinstance(data, list):
-                            yield from cls.stream_from_records(data)
-                        elif isinstance(data, dict):
-                            yield from cls.stream_from_records([data])
+                        wrapper = io.TextIOWrapper(fp, encoding="utf-8", errors="replace")
+                        yield from cls._stream_json_file(wrapper)
                 elif lower_name.endswith((".md", ".txt")):
                     with zf.open(info, "r") as fp:
                         content = fp.read().decode("utf-8", errors="replace")
@@ -429,13 +497,16 @@ class ZeroDirtyLogicSieve:
     def score_signal_density(self, text: str, turn_depth: int = 1) -> float:
         """
         S(d) = w1 * Count(PatentLexicon) + w2 * Count(ArchPrimitives) + w3 * I(HasCodeOrMath) + w4 * ln(TurnDepth)
+        Uses word-boundary matching to prevent substring false positives ('ast' matching 'last' or 'fast').
         """
         if not text or not text.strip():
             return 0.0
 
         lower = text.lower()
-        patent_hits = sum(lower.count(term) for term in PATENT_LEXICON)
-        arch_hits = sum(lower.count(term) for term in ARCH_PRIMITIVES)
+        patent_pat = re.compile(r"\b(?:" + "|".join(re.escape(term) for term in PATENT_LEXICON) + r")\b", re.IGNORECASE)
+        arch_pat = re.compile(r"\b(?:" + "|".join(re.escape(term) for term in ARCH_PRIMITIVES) + r")\b", re.IGNORECASE)
+        patent_hits = len(patent_pat.findall(lower))
+        arch_hits = len(arch_pat.findall(lower))
 
         has_math_or_code = bool(
             "$$" in text
@@ -475,7 +546,8 @@ class ZeroDirtyLogicSieve:
         stripped_dead_ends: List[str] = []
         clean_lines: List[str] = []
 
-        for raw_line in raw_str.splitlines():
+        normalized_raw = normalize_confusables(raw_str)
+        for raw_line in normalized_raw.splitlines():
             line = raw_line.strip()
             if not line:
                 continue
@@ -526,11 +598,17 @@ class ZeroDirtyLogicSieve:
     def _extract_math_invariants(sanitized_text: str) -> List[str]:
         found: List[str] = []
         seen: Set[str] = set()
+        dangerous_tokens = (
+            "eval(", "exec(", "__import__(", "os.system(", "subprocess.",
+            "shutil.", "pty.", "open(", "socket.", "__class__", "__subclasses__"
+        )
 
         for pat in MATH_INVARIANT_PATTERNS:
             for match in pat.finditer(sanitized_text):
                 expr = " ".join(match.group(1).strip().split())
                 if "[REDACTED_DIRTY_LOGIC]" in expr or len(expr) < 4:
+                    continue
+                if any(tok in expr.lower() for tok in dangerous_tokens):
                     continue
                 # Must contain an operator or mathematical relation
                 if not any(op in expr for op in ("=", "\\le", "\\ge", "<=", ">=", "\\approx", "\\propto")):
@@ -645,7 +723,13 @@ class MinHashDraftCollapser:
         claims: List[CanonicalPatentClaim] = []
         for idx, cluster in enumerate(clusters, start=1):
             first_rec, _ = cluster[0]
-            terminal_rec, terminal_art = cluster[-1]
+            terminal_rec, _ = cluster[-1]
+
+            # Select canonical artifact based on highest signal density & completeness
+            best_rec, best_art = max(
+                cluster,
+                key=lambda pair: (pair[1].signal_score, len(pair[1].sanitized_text), pair[0].timestamp_iso)
+            )
 
             lineage_hashes = tuple(art.raw_sha256 for _, art in cluster)
             all_invariants: List[str] = []
@@ -658,21 +742,21 @@ class MinHashDraftCollapser:
                     if rule not in all_rules:
                         all_rules.append(rule)
 
-            title = terminal_rec.prompt_text.splitlines()[0][:80] if terminal_rec.prompt_text else f"Claim {idx}"
+            title = best_rec.prompt_text.splitlines()[0][:80] if best_rec.prompt_text else f"Claim {idx}"
             claims.append(
                 CanonicalPatentClaim(
                     claim_id=f"claim_{thread.thread_id}_{idx:02d}",
                     thread_id=thread.thread_id,
                     title=title,
-                    canonical_text=terminal_art.sanitized_text,
+                    canonical_text=best_art.sanitized_text,
                     conception_timestamp=first_rec.timestamp_iso,
                     terminal_timestamp=terminal_rec.timestamp_iso,
                     revision_count=len(cluster),
                     lineage_hashes=lineage_hashes,
                     extracted_invariants=tuple(all_invariants),
                     extracted_domain_rules=tuple(all_rules),
-                    signal_score=terminal_art.signal_score,
-                    quarantined_xml=terminal_art.quarantined_xml,
+                    signal_score=best_art.signal_score,
+                    quarantined_xml=best_art.quarantined_xml,
                 )
             )
 

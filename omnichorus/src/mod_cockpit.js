@@ -60,7 +60,17 @@ export class ModCockpit {
 
     // 4. Semantic Question Clustering
     const text = (message.text || '').trim();
-    if (this.isQuestion(text)) {
+    const isQ = this.isQuestion(text);
+    if (this.mode === ModMode.QA_CLUSTER) {
+      if (isQ) {
+        semanticMultiplier *= 2.5;
+        annotations.push('❓ QA PRIORITY');
+      } else {
+        baseScore *= 0.3;
+      }
+    }
+
+    if (isQ) {
       const clusterKey = this.extractQuestionKernel(text);
       let cluster = this.questionClusters.get(clusterKey);
       if (!cluster) {

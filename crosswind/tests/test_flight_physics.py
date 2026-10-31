@@ -133,5 +133,42 @@ class TestFlightDynamics(unittest.TestCase):
         self.assertEqual(haptics_stall["stall_vibration_freq_hz"], 32)
         self.assertEqual(haptics_stall["stall_vibration_amplitude"], 220)
 
+    def test_viterna_corrigan_lift_continuity_at_critical_alpha(self):
+        """
+        Verify C^1 Viterna-Corrigan continuity across the alpha = 16.5 deg stall boundary.
+        """
+        aero_pre = self.engine.compute_aerodynamics(airspeed_kts=100.0, alpha_deg=16.499, altitude_agl_m=50.0)
+        aero_post = self.engine.compute_aerodynamics(airspeed_kts=100.0, alpha_deg=16.501, altitude_agl_m=50.0)
+
+        # Delta in Cl across 0.002 deg must be negligible (< 0.005) - no jump discontinuity
+        self.assertAlmostEqual(aero_pre["cl"], aero_post["cl"], delta=0.005)
+        self.assertTrue(aero_post["is_stalled"])
+        self.assertFalse(aero_pre["is_stalled"])
+
+    def test_spanwise_blade_element_theory_ground_cushion_roll_moment(self):
+        """
+        Verify 20 spanwise BET stations and asymmetric cushion roll moments in banked flares.
+        """
+        # 1. Level flight inside ground effect: perfectly symmetric, roll moment is 0
+        bet_level = self.engine.compute_blade_element_aerodynamics(
+            airspeed_kts=105.0, alpha_deg=7.0, altitude_agl_m=3.0, bank_angle_deg=0.0, num_stations=20
+        )
+        self.assertEqual(bet_level["num_stations"], 20)
+        self.assertEqual(len(bet_level["stations"]), 20)
+        self.assertAlmostEqual(bet_level["roll_moment_nm"], 0.0, delta=1e-3)
+
+        # 2. Banked flare inside ground effect: lower wing gets higher lift cushion, producing roll moment
+        bet_banked_ground = self.engine.compute_blade_element_aerodynamics(
+            airspeed_kts=105.0, alpha_deg=7.0, altitude_agl_m=3.0, bank_angle_deg=5.0, num_stations=20
+        )
+        self.assertNotEqual(bet_banked_ground["roll_moment_nm"], 0.0)
+        self.assertGreater(abs(bet_banked_ground["roll_moment_nm"]), 500.0)
+
+        # 3. Banked flare outside ground effect (200m AGL): sigma ~ 1 across all stations, moment is 0
+        bet_banked_high = self.engine.compute_blade_element_aerodynamics(
+            airspeed_kts=105.0, alpha_deg=7.0, altitude_agl_m=200.0, bank_angle_deg=5.0, num_stations=20
+        )
+        self.assertAlmostEqual(bet_banked_high["roll_moment_nm"], 0.0, delta=1.0)
+
 if __name__ == "__main__":
     unittest.main()

@@ -55,6 +55,14 @@ export class CurrencyNormalizer {
 
       case Platform.TIKTOK: {
         // TikTok Live WebcastGiftMessage (coins / diamondCount)
+        // Gate finalization on repeatEnd === 1 (or boolean true) or single-drop (repeatEnd undefined) to prevent streak inflation
+        const isIntermediateStreak = rawPayload.repeatEnd !== undefined && rawPayload.repeatEnd !== 1 && rawPayload.repeatEnd !== true;
+        if (isIntermediateStreak) {
+          grossUSD = 0.0;
+          nativeDisplay = `${rawPayload.giftName || 'Gift'} (Streak in progress...)`;
+          ttsShoutout = '';
+          break;
+        }
         const diamondCount = rawPayload.diamondCount || 0;
         const repeatCount = rawPayload.repeatCount || 1;
         const totalCoins = diamondCount * repeatCount;

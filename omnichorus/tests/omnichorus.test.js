@@ -111,3 +111,103 @@ test('DwfqRouter prevents high-volume starvation and distributes fair attention'
   const discordDispatched = batch.filter(m => m.platform === Platform.DISCORD);
   assert.ok(discordDispatched.length >= 2, `Expected at least 2 Discord messages, got ${discordDispatched.length}`);
 });
+
+test('TikTok Live streak idempotency gates revenue on repeatEnd === 1', () => {
+  // In-progress streak drops: repeatCount 1..9 with repeatEnd === 0
+  const inProgress1 = CurrencyNormalizer.normalize({
+    platform: Platform.TIKTOK,
+    author: 'ViewerA',
+    giftName: 'Rose',
+    diamondCount: 1,
+    repeatCount: 1,
+    repeatEnd: 0
+  });
+  assert.strictEqual(inProgress1.grossUSD, 0.0);
+  assert.strictEqual(inProgress1.ttsShoutout, '');
+
+  const inProgress5 = CurrencyNormalizer.normalize({
+    platform: Platform.TIKTOK,
+    author: 'ViewerA',
+    giftName: 'Rose',
+    diamondCount: 1,
+    repeatCount: 5,
+    repeatEnd: 0
+  });
+  assert.strictEqual(inProgress5.grossUSD, 0.0);
+
+  // Terminal streak drop: repeatCount 10 with repeatEnd === 1
+  const finalDrop = CurrencyNormalizer.normalize({
+    platform: Platform.TIKTOK,
+    author: 'ViewerA',
+    giftName: 'Rose',
+    diamondCount: 1,
+    repeatCount: 10,
+    repeatEnd: 1
+  });
+  // 10 coins * 0.0106 = $0.106 USD
+  assert.strictEqual(finalDrop.grossUSD.toFixed(3), '0.106');
+  assert.ok(finalDrop.ttsShoutout.includes('ViewerA on TikTok Live'));
+});
+
+test('DwfqRouter calculates simplex-normalized weights and drains empty queue deficit', () => {
+  const router = new DwfqRouter({ beta: 0.30, quantum: 100, wMin: 0.05 });
+  router.enqueue(Platform.TWITCH, { id: 'tw1', platform: Platform.TWITCH, compositeScore: 20 });
+  router.enqueue(Platform.YOUTUBE, { id: 'yt1', platform: Platform.YOUTUBE, compositeScore: 20 });
+  router.enqueue(Platform.TIKTOK, { id: 'tt1', platform: Platform.TIKTOK, compositeScore: 20 });
+
+  const weights = router.calculateWeights();
+  let sum = 0;
+  for (const w of weights.values()) {
+    assert.ok(w >= 0.05, 'Each weight must meet floor');
+    sum += w;
+  }
+  assert.ok(Math.abs(sum - 1.0) < 1e-6, `Simplex sum must equal 1.0, got ${sum}`);
+
+  // Dispatch all 3 so queues drain to empty
+  router.dispatchNext(5);
+  for (const p of [Platform.TWITCH, Platform.YOUTUBE, Platform.TIKTOK]) {
+    assert.strictEqual(router.deficits.get(p), 0.0, `Queue for ${p} must reset deficit to 0 upon drain`);
+  }
+});
+
+test('ModMode.QA_CLUSTER boosts questions and de-prioritizes non-questions', () => {
+  const cockpit = new ModCockpit({ initialMode: ModMode.QA_CLUSTER });
+
+  const questionMsg = { text: 'How do I download the latest release?', platform: Platform.TWITCH, author: 'Ch1' };
+  const qEval = cockpit.evaluateMessage(questionMsg, { grossUSD: 0 });
+  assert.ok(qEval.annotations.includes('❓ QA PRIORITY'));
+  assert.ok(qEval.compositeScore > 20.0);
+
+  const regularMsg = { text: 'Just chilling and saying hello', platform: Platform.TWITCH, author: 'Ch2' };
+  const rEval = cockpit.evaluateMessage(regularMsg, { grossUSD: 0 });
+  assert.ok(rEval.compositeScore < 10.0, 'Non-question must be deprioritized in QA_CLUSTER mode');
+});
+
+test('VadSidechain performs smooth C^1 continuous raised-cosine ducking', () => {
+  const vad = new VadSidechain({ pauseGateMs: 200, attackMs: 50, releaseMs: 100 });
+  const t0 = 1000;
+
+  // Presenter speaks at t0 -> triggers attack ramp down to duckingGain
+  vad.updatePresenterVoiceActivity(0.90, t0);
+  assert.strictEqual(vad.canTriggerTts(t0), false);
+
+  // Midway through attack (25ms in)
+  const midAttackGain = vad.computeGainAt(t0 + 25);
+  assert.ok(midAttackGain < 1.0 && midAttackGain > vad.duckingGain, 'Mid-attack gain is smoothly interpolated');
+
+  // Attack complete at 50ms
+  const endAttackGain = vad.computeGainAt(t0 + 50);
+  assert.ok(Math.abs(endAttackGain - vad.duckingGain) < 0.001);
+
+  // Presenter stops speaking at t0 + 100. Pause gate is 200ms -> gate opens at t0 + 300
+  vad.updatePresenterVoiceActivity(0.10, t0 + 300);
+  assert.strictEqual(vad.canTriggerTts(t0 + 300), true);
+
+  // Midway through release (t0 + 350, 50ms into 100ms release)
+  const midReleaseGain = vad.computeGainAt(t0 + 350);
+  assert.ok(midReleaseGain > vad.duckingGain && midReleaseGain < 1.0, 'Mid-release gain is smoothly interpolated');
+
+  // Fully released at t0 + 400
+  const endReleaseGain = vad.computeGainAt(t0 + 400);
+  assert.strictEqual(endReleaseGain, 1.0);
+});

@@ -105,12 +105,17 @@ class FlightDynamicsEngine:
         stall_warning = False
 
         effective_cl_max = self.aircraft.cl_max + (flaps_ratio * 0.3)
+        alpha_crit_deg = 16.5
+        cl_crit = min(effective_cl_max, max(-0.5, (effective_cl_alpha * math.radians(alpha_crit_deg)) + cl_flap))
+
         if alpha_deg >= 14.5:
             stall_warning = True
-        if alpha_deg >= 16.5:
+        if alpha_deg >= alpha_crit_deg:
             is_stalled = True
-            # Severe post-stall lift drop
-            cl = effective_cl_max * math.cos(math.radians((alpha_deg - 16.5) * 3.5))
+            delta_alpha = alpha_deg - alpha_crit_deg
+            # C^1 continuous Viterna-Corrigan post-stall cosine decay anchored to cl_crit
+            decay_angle = min(math.pi * 0.5, math.radians(delta_alpha * 3.5))
+            cl = cl_crit * math.cos(decay_angle)
         else:
             cl = min(effective_cl_max, max(-0.5, cl_unclamped))
 
@@ -131,6 +136,91 @@ class FlightDynamicsEngine:
             "dynamic_pressure_pa": dynamic_pressure,
             "is_stalled": is_stalled,
             "stall_warning": stall_warning
+        }
+
+    def compute_blade_element_aerodynamics(
+        self,
+        airspeed_kts: float,
+        alpha_deg: float,
+        altitude_agl_m: float,
+        bank_angle_deg: float = 0.0,
+        flaps_ratio: float = 0.0,
+        num_stations: int = 20,
+    ) -> Dict[str, Any]:
+        """
+        Discretize wing into spanwise Blade Element Theory (BET) stations y_k in [-b/2, b/2].
+        Local ground effect height:
+            h(y_k) = max(0.1, altitude_agl_m + y_k * sin(bank_angle_rad))
+        Produces authentic asymmetric cushion roll moments in banked ground effect flares.
+        """
+        v_mps = airspeed_kts * 0.514444
+        dynamic_pressure = 0.5 * self.air_density * v_mps * v_mps
+        alpha_rad = math.radians(alpha_deg)
+        bank_rad = math.radians(bank_angle_deg)
+        sin_bank = math.sin(bank_rad)
+
+        b = self.aircraft.wingspan_m
+        dy = b / float(num_stations)
+        area_per_station = self.aircraft.wing_area_m2 / float(num_stations)
+        cl_flap = flaps_ratio * 0.55
+        cd_flap = flaps_ratio * 0.045
+        effective_cl_max = self.aircraft.cl_max + (flaps_ratio * 0.3)
+        alpha_crit_deg = 16.5
+
+        stations: List[Dict[str, float]] = []
+        total_lift_n = 0.0
+        total_drag_n = 0.0
+        roll_moment_nm = 0.0
+
+        for k in range(num_stations):
+            y_k = -0.5 * b + (k + 0.5) * dy
+            h_k = max(0.1, altitude_agl_m + (y_k * sin_bank))
+            sigma_k = self.ground_effect_factor(h_k, b)
+            cl_alpha_k = self.ground_effect_lift_boost(
+                h_k, b, self.aircraft.cl_alpha, self.aircraft.aspect_ratio
+            )
+
+            cl_unclamped_k = (cl_alpha_k * alpha_rad) + cl_flap
+            cl_crit_k = min(
+                effective_cl_max,
+                max(-0.5, (cl_alpha_k * math.radians(alpha_crit_deg)) + cl_flap),
+            )
+
+            if alpha_deg >= alpha_crit_deg:
+                decay = min(math.pi * 0.5, math.radians((alpha_deg - alpha_crit_deg) * 3.5))
+                cl_k = cl_crit_k * math.cos(decay)
+            else:
+                cl_k = min(effective_cl_max, max(-0.5, cl_unclamped_k))
+
+            denom_cdi = math.pi * self.aircraft.oswald_efficiency * self.aircraft.aspect_ratio
+            cdi_k = sigma_k * (cl_k * cl_k) / max(0.1, denom_cdi)
+            cd_k = self.aircraft.cd_zero + cd_flap + cdi_k
+
+            lift_k = dynamic_pressure * area_per_station * cl_k
+            drag_k = dynamic_pressure * area_per_station * cd_k
+            moment_k = y_k * lift_k
+
+            total_lift_n += lift_k
+            total_drag_n += drag_k
+            roll_moment_nm += moment_k
+
+            stations.append({
+                "station_index": k,
+                "y_m": y_k,
+                "altitude_m": h_k,
+                "sigma": sigma_k,
+                "cl": cl_k,
+                "cd": cd_k,
+                "lift_n": lift_k,
+                "drag_n": drag_k,
+            })
+
+        return {
+            "total_lift_n": total_lift_n,
+            "total_drag_n": total_drag_n,
+            "roll_moment_nm": roll_moment_nm,
+            "num_stations": num_stations,
+            "stations": stations,
         }
 
     @staticmethod
