@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AetherCommandNoteFrontmatter",
+  "description": "Canonical schema definition for Obsidian Aether bash and PowerShell command notes",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "description",
+    "use_cases",
+    "syntax",
+    "execution_environment",
+    "tags",
+    "timestamps",
+    "catalog",
+    "type"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^cmd-(bash|powershell|pwsh|sh|cmd)-[a-z0-9_.-]+$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 3
+    },
+    "description": {
+      "type": "string",
+      "minLength": 5
+    },
+    "use_cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 3
+      }
+    },
+    "syntax": {
+      "type": "string",
+      "minLength": 1
+    },
+    "execution_environment": {
+      "type": "string",
+      "enum": ["powershell", "pwsh", "bash", "sh", "cmd"]
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "timestamps": {
+      "type": "object",
+      "required": ["created", "updated"],
+      "properties": {
+        "created": {
+          "type": "string"
+        },
+        "updated": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "required", "description"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "default": {},
+          "description": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "safety_level": {
+      "type": "string",
+      "enum": ["read-only", "mutating", "destructive"]
+    },
+    "catalog": {
+      "type": "string",
+      "const": "aether"
+    },
+    "type": {
+      "type": "string",
+      "const": "command-catalog"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}
